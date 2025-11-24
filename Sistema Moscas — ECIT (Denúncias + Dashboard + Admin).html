@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<!-- saved from url=(0044)file:///C:/Users/mariz/Desktop/sla/test.html -->
+<html lang="pt-br"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sistema Moscas — ECIT (Denúncias + Dashboard + Admin)</title>
+
+<!-- Chart.js CDN -->
+<script src="./Sistema Moscas — ECIT (Denúncias + Dashboard + Admin)_files/chart.js.download"></script>
+
+<style>
+  :root{
+    --pb-red: #b30000;
+    --bg: #f4f6f8;
+    --card: #fff;
+    --muted:#666;
+  }
+  body{font-family:Arial,Helvetica,sans-serif;margin:0;background:var(--bg);color:#222}
+  header{background:var(--pb-red);color:#fff;padding:14px 18px;display:flex;align-items:center;gap:16px}
+  header img{height:64px}
+  header h2{flex:1;margin:0;font-size:1.15rem;text-align:center}
+  .container{width:95%;max-width:1100px;margin:18px auto}
+  /* layout */
+  .cols{display:grid;grid-template-columns:1fr 420px;gap:18px}
+  .card{background:var(--card);padding:14px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+  /* planta / heatmap */
+  #planta-container{position:relative;max-width:900px;margin:auto}
+  #planta{width:100%;border-radius:6px;border:2px solid #222;display:block;cursor:crosshair}
+  .heat{position:absolute;width:48px;height:48px;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);background:radial-gradient(circle, rgba(255,0,0,0.45) 0%, rgba(255,0,0,0) 60%)}
+  /* form */
+  form label{display:block;margin-top:10px;font-weight:600}
+  input,select,textarea{width:100%;padding:8px;margin-top:6px;border-radius:6px;border:1px solid #bbb;box-sizing:border-box}
+  button{background:var(--pb-red);color:#fff;border:0;padding:10px 12px;border-radius:8px;cursor:pointer;margin-top:12px}
+  button.secondary{background:#666;margin-left:8px}
+  /* tabela */
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th,td{padding:8px;border:1px solid #ddd;text-align:left;font-size:0.95rem}
+  th{background:var(--pb-red);color:#fff}
+  /* admin modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:50}
+  .modal .box{width:360px;background:#fff;padding:18px;border-radius:10px}
+  .hidden{display:none}
+  /* responsive */
+  @media (max-width:900px){ .cols{grid-template-columns:1fr} header h2{text-align:left;font-size:1rem} }
+  footer{margin:26px 0;text-align:center;color:var(--muted);font-size:0.9rem}
+</style>
+</head>
+<body>
+
+<!-- ================= HEADER ================= -->
+<header>
+  <img src="./Sistema Moscas — ECIT (Denúncias + Dashboard + Admin)_files/ff8pLEx.png" alt="Logo ECIT">
+  <h2>Sistema de Monitoramento e Denúncias – ECIT José Itamar</h2>
+  <img src="./Sistema Moscas — ECIT (Denúncias + Dashboard + Admin)_files/ff8braS.png" alt="Governo PB">
+</header>
+
+<div class="container">
+
+  <!-- top actions -->
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+    <button id="openAdminBtn">Entrar no Painel Admin</button>
+    <button id="downloadAllBtn">Exportar registros (JSON)</button>
+    <label style="margin-left:auto;font-size:0.95rem;color:var(--muted)">Usuário: <strong id="userLabel">visitante</strong></label>
+  </div>
+
+  <div class="cols">
+    <!-- LEFT: Planta + Form + Heatmap -->
+    <div>
+      <div class="card">
+        <h3 style="margin:0 0 8px 0">Planta (clique para marcar)</h3>
+        <div id="planta-container">
+          <img id="planta" src="./Sistema Moscas — ECIT (Denúncias + Dashboard + Admin)_files/fFpMUVS.png" alt="Planta ECIT">
+          <div id="heatmapLayer" style="position:absolute;inset:0;"></div>
+        </div>
+
+        <form id="reportForm" style="margin-top:12px">
+          <label>Data</label>
+          <input type="date" id="dateField" required="">
+          <label>Hora</label>
+          <input type="time" id="timeField" required="">
+          <label>Tipo de local</label>
+          <select id="locationType" required="">
+            <option value="">-- selecionar --</option>
+            <option value="sala">Sala de aula</option>
+            <option value="quadra">Quadra / pátio</option>
+            <option value="banheiro">Banheiro</option>
+            <option value="cozinha">Cozinha / refeitório</option>
+            <option value="externo">Área externa</option>
+            <option value="outro">Outro</option>
+          </select>
+          <label>Coordenadas</label>
+          <input type="text" id="coordsField" readonly="" placeholder="Clique na planta">
+          <label>Descrição (opcional)</label>
+          <textarea id="desc" rows="3" placeholder="Observações..."></textarea>
+
+          <div style="display:flex;gap:8px">
+            <button type="button" id="btnSave">Salvar localmente</button>
+            <button type="button" id="btnClearForm" class="secondary">Limpar</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- tabela de registros -->
+      <div class="card" style="margin-top:14px">
+        <h3 style="margin-top:0">Registros locais</h3>
+        <table>
+          <thead><tr><th>Data</th><th>Hora</th><th>Local</th><th>Coords</th></tr></thead>
+          <tbody id="tabelaDenuncias"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RIGHT: Dashboard / Charts -->
+    <aside>
+      <div class="card">
+        <h3 style="margin-top:0">Dashboard</h3>
+
+        <canvas id="chartByType" style="max-height:220px"></canvas>
+        <hr style="margin:12px 0">
+        <canvas id="chartByHour" style="max-height:220px"></canvas>
+        <hr style="margin:12px 0">
+        <canvas id="chartByDay" style="max-height:220px"></canvas>
+
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button id="refreshCharts">Atualizar gráficos</button>
+          <button id="clearHeatBtn" class="secondary">Limpar heatmap</button>
+        </div>
+      </div>
+
+      <!-- Admin area visible quando logado -->
+      <div id="adminPanel" class="card hidden" style="margin-top:14px">
+        <h3>Painel Administrativo</h3>
+        <p style="margin:6px 0;color:var(--muted)">Ações administrativas disponíveis enquanto logado.</p>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="exportBtn">Exportar JSON</button>
+          <button id="importBtn" class="secondary">Importar JSON</button>
+          <button id="clearAllBtn" class="secondary">Apagar todos registros</button>
+        </div>
+
+        <input type="file" id="importFile" accept="application/json" style="margin-top:10px;display:none">
+        <div style="margin-top:10px">
+          <button id="logoutBtn" style="background:#333">Logout</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer>© 2025 – Governo da Paraíba | Secretaria de Educação | ECIT José Itamar da Rocha Cândido</footer>
+</div>
+
+<!-- ================= MODAL LOGIN ================= -->
+<div id="modalAdmin" class="modal hidden">
+  <div class="box">
+    <h3>Login Admin</h3>
+    <label>Usuário</label>
+    <input id="adminUser" value="admin">
+    <label>Senha</label>
+    <input id="adminPass" type="password" value="password">
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button id="doLogin">Entrar</button>
+      <button id="closeModal" class="secondary">Cancelar</button>
+    </div>
+    <p style="font-size:0.85rem;color:#666;margin-top:10px">Credenciais padrão: <strong>admin / password</strong>. Altere no painel após login.</p>
+  </div>
+</div>
+
+<script>
+/* ===================== Setup inicial ===================== */
+const defaultAdmin = { user: "admin", pass: "password" };
+// store admin creds in localStorage only if not present
+if(!localStorage.getItem("adminCreds")){
+  localStorage.setItem("adminCreds", JSON.stringify(defaultAdmin));
+}
+
+// elementos
+const planta = document.getElementById('planta');
+const heatmapLayer = document.getElementById('heatmapLayer');
+const coordsField = document.getElementById('coordsField');
+const dateField = document.getElementById('dateField');
+const timeField = document.getElementById('timeField');
+const locationType = document.getElementById('locationType');
+const descField = document.getElementById('desc');
+const tabelaDenuncias = document.getElementById('tabelaDenuncias');
+const userLabel = document.getElementById('userLabel');
+
+const modalAdmin = document.getElementById('modalAdmin');
+const openAdminBtn = document.getElementById('openAdminBtn');
+const doLogin = document.getElementById('doLogin');
+const closeModal = document.getElementById('closeModal');
+
+const adminPanel = document.getElementById('adminPanel');
+const logoutBtn = document.getElementById('logoutBtn');
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const importFile = document.getElementById('importFile');
+const clearAllBtn = document.getElementById('clearAllBtn');
+
+const downloadAllBtn = document.getElementById('downloadAllBtn');
+const refreshChartsBtn = document.getElementById('refreshCharts');
+const clearHeatBtn = document.getElementById('clearHeatBtn');
+
+const btnSave = document.getElementById('btnSave');
+const btnClearForm = document.getElementById('btnClearForm');
+
+/* Set data/time defaults */
+const now = new Date();
+dateField.value = now.toISOString().slice(0,10);
+timeField.value = now.toTimeString().slice(0,5);
+
+/* ===================== Util: carregar e salvar denuncias ===================== */
+function getDenuncias(){
+  return JSON.parse(localStorage.getItem('denuncias') || '[]');
+}
+function setDenuncias(arr){
+  localStorage.setItem('denuncias', JSON.stringify(arr));
+}
+
+/* ===================== Marca clique na planta ===================== */
+function addHeatPoint(xPct,yPct){
+  const div = document.createElement('div');
+  div.className = 'heat';
+  div.style.left = xPct + '%';
+  div.style.top = yPct + '%';
+  heatmapLayer.appendChild(div);
+}
+function clearHeatmap(){
+  heatmapLayer.innerHTML = '';
+}
+
+// when clicking on planta
+planta.addEventListener('click', function(e){
+  const rect = planta.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / planta.width * 100;
+  const y = (e.clientY - rect.top) / planta.height * 100;
+  const xp = x.toFixed(2), yp = y.toFixed(2);
+  coordsField.value = X: ${xp}%, Y: ${yp}%;
+  // show a point preview
+  addHeatPoint(xp,yp);
+});
+
+/* ===================== Salvar nova denuncia local ===================== */
+btnSave.addEventListener('click', function(){
+  const data = dateField.value;
+  const hora = timeField.value;
+  const tipo = locationType.value;
+  const coords = coordsField.value;
+  const desc = descField.value || "";
+
+  if(!data || !hora || !tipo || !coords){
+    alert('Preencha data, hora, tipo e clique na planta para obter coordenadas.');
+    return;
+  }
+
+  const registro = { data, hora, tipo, coords, desc, created_at: new Date().toISOString() };
+  const dados = getDenuncias();
+  dados.push(registro);
+  setDenuncias(dados);
+  renderTabela();
+  updateAllDisplays();
+  // feedback
+  alert('Registro salvo localmente.');
+  // reset form (keeps date/time current)
+  descField.value = '';
+  locationType.value = '';
+});
+
+/* limpar formulário */
+btnClearForm.addEventListener('click', function(){ 
+  descField.value=''; locationType.value=''; coordsField.value=''; 
+});
+
+/* ===================== Render tabela ===================== */
+function renderTabela(){
+  const dados = getDenuncias();
+  tabelaDenuncias.innerHTML = '';
+  if(dados.length === 0){
+    tabelaDenuncias.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#666">Nenhum registro</td></tr>';
+    return;
+  }
+  dados.slice().reverse().forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = <td>${r.data}</td><td>${r.hora}</td><td>${r.tipo}</td><td>${r.coords}</td>;
+    tabelaDenuncias.appendChild(tr);
+  });
+}
+renderTabela();
+
+/* ===================== Charts (Chart.js) ===================== */
+let chartByType = null, chartByHour = null, chartByDay = null;
+
+function aggregateData(){
+  const dados = getDenuncias();
+  const byType = {};
+  const byHour = Array(24).fill(0);
+  const byDay = {}; // date => count
+  dados.forEach(r=>{
+    // type
+    byType[r.tipo] = (byType[r.tipo]||0) + 1;
+    // hour
+    const h = parseInt(r.hora.split(':')[0],10) || 0;
+    byHour[h] += 1;
+    // day
+    byDay[r.data] = (byDay[r.data]||0) + 1;
+  });
+  return { byType, byHour, byDay };
+}
+
+function renderCharts(){
+  const ag = aggregateData();
+  // BY TYPE (pie)
+  const labelsType = Object.keys(ag.byType);
+  const valuesType = labelsType.map(k=>ag.byType[k]);
+  if(chartByType) chartByType.destroy();
+  const ctx1 = document.getElementById('chartByType').getContext('2d');
+  chartByType = new Chart(ctx1, {
+    type:'pie',
+    data:{labels:labelsType, datasets:[{data:valuesType}]},
+    options:{plugins:{legend:{position:'bottom'}},responsive:true}
+  });
+
+  // BY HOUR (bar)
+  const hours = Array.from({length:24},(_,i)=>String(i).padStart(2,'0')+':00');
+  if(chartByHour) chartByHour.destroy();
+  const ctx2 = document.getElementById('chartByHour').getContext('2d');
+  chartByHour = new Chart(ctx2, {
+    type:'bar',
+    data:{labels:hours, datasets:[{label:'Ocorrências por hora',data:ag.byHour}]},
+    options:{scales:{y:{beginAtZero:true}}}
+  });
+
+  // BY DAY (line)
+  const dayKeys = Object.keys(ag.byDay).sort();
+  const dayValues = dayKeys.map(k=>ag.byDay[k]);
+  if(chartByDay) chartByDay.destroy();
+  const ctx3 = document.getElementById('chartByDay').getContext('2d');
+  chartByDay = new Chart(ctx3, {
+    type:'line',
+    data:{labels:dayKeys, datasets:[{label:'Ocorrências por dia',data:dayValues,fill:false}]},
+    options:{scales:{y:{beginAtZero:true}}}
+  });
+}
+
+/* ===================== Heatmap rebuild from all records ===================== */
+function rebuildHeatmapFromData(){
+  clearHeatmap();
+  const dados = getDenuncias();
+  // for each register, parse coords 'X: xx%, Y: yy%'
+  dados.forEach(r=>{
+    if(!r.coords) return;
+    const m = r.coords.match(/X:\s*([\d.]+)%.Y:\s([\d.]+)%/);
+    if(m){
+      const x = parseFloat(m[1]), y = parseFloat(m[2]);
+      addHeatPoint(x,y);
+    }
+  });
+}
+
+/* ===================== Update displays (charts, heatmap, table) ===================== */
+function updateAllDisplays(){
+  renderTabela();
+  renderCharts();
+  rebuildHeatmapFromData();
+  // user label remain as is
+}
+
+/* ===================== Buttons / Admin actions ===================== */
+refreshChartsBtn.addEventListener('click', updateAllDisplays);
+clearHeatBtn.addEventListener('click', function(){ clearHeatmap(); });
+
+downloadAllBtn.addEventListener('click', function(){
+  const data = getDenuncias();
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'denuncias_ecit.json'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+});
+
+/* Admin modal open */
+openAdminBtn.addEventListener('click', function(){ modalAdmin.classList.remove('hidden'); });
+
+closeModal.addEventListener('click', function(){ modalAdmin.classList.add('hidden'); });
+
+doLogin.addEventListener('click', function(){
+  const user = document.getElementById('adminUser').value;
+  const pass = document.getElementById('adminPass').value;
+  const stored = JSON.parse(localStorage.getItem('adminCreds') || '{}');
+  if(user === stored.user && pass === stored.pass){
+    // login success
+    modalAdmin.classList.add('hidden');
+    adminPanel.classList.remove('hidden');
+    userLabel.textContent = user;
+    sessionStorage.setItem('loggedUser', user);
+    alert('Login efetuado com sucesso.');
+  } else {
+    alert('Credenciais inválidas.');
+  }
+});
+
+/* logout */
+logoutBtn.addEventListener('click', function(){
+  sessionStorage.removeItem('loggedUser');
+  adminPanel.classList.add('hidden');
+  userLabel.textContent = 'visitante';
+  alert('Desconectado.');
+});
+
+/* on load, check session */
+window.addEventListener('load', function(){
+  const lu = sessionStorage.getItem('loggedUser');
+  if(lu){
+    adminPanel.classList.remove('hidden');
+    userLabel.textContent = lu;
+  } else {
+    adminPanel.classList.add('hidden');
+  }
+  updateAllDisplays();
+});
+
+/* ===================== Admin export / import / clear ===================== */
+exportBtn.addEventListener('click', function(){
+  const data = getDenuncias();
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'denuncias_export.json';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+});
+
+importBtn.addEventListener('click', function(){ importFile.click(); });
+importFile.addEventListener('change', function(e){
+  const f = e.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = function(){ 
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(!Array.isArray(parsed)) throw new Error('JSON inválido: array esperado.');
+      // append or replace? we'll ask the admin via prompt
+      const action = confirm('Deseja substituir os registros existentes? OK = substituir / Cancel = adicionar');
+      if(action){
+        setDenuncias(parsed);
+      } else {
+        const current = getDenuncias();
+        setDenuncias(current.concat(parsed));
+      }
+      updateAllDisplays();
+      alert('Importação concluída.');
+    }catch(err){
+      alert('Erro ao importar: ' + err.message);
+    }
+  };
+  reader.readAsText(f);
+});
+
+clearAllBtn.addEventListener('click', function(){
+  if(!confirm('Tem certeza que deseja apagar TODOS os registros? Esta ação é irreversível.')) return;
+  setDenuncias([]);
+  updateAllDisplays();
+  alert('Registros apagados.');
+});
+
+/* ===================== small helper: change admin creds (optional) ===================== */
+/* You can expose an option in the admin panel to change credentials.
+   For brevity, here we allow changing creds via console:
+   localStorage.setItem('adminCreds', JSON.stringify({user:'novo', pass:'novaSenha'}));
+*/
+
+/* initial charts render */
+renderCharts();
+
+</script>
+
+</body></html>
