@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- saved from url=(0044)file:///C:/Users/mariz/Desktop/sla/test.html -->
-<html lang="pt-br"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sistema Moscas — ECIT (Denúncias + Dashboard + Admin)</title>
 
 <!-- Chart.js CDN -->
-<script src="./Sistema Moscas — ECIT (Denúncias + Dashboard + Admin)_files/chart.js.download"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
   :root{
@@ -43,15 +43,21 @@
   /* responsive */
   @media (max-width:900px){ .cols{grid-template-columns:1fr} header h2{text-align:left;font-size:1rem} }
   footer{margin:26px 0;text-align:center;color:var(--muted);font-size:0.9rem}
+#heatmapLayer{
+  position:absolute;
+  inset:0;
+  pointer-events: none; /* <<-- adicione isto */
+}
+
 </style>
 </head>
 <body>
 
 <!-- ================= HEADER ================= -->
 <header>
-  <img src="./Sistema Moscas — ECIT (Denúncias + Dashboard + Admin)_files/ff8pLEx.png" alt="Logo ECIT">
+  <img src="https://iili.io/ff8pLEx.png" alt="Logo ECIT">
   <h2>Sistema de Monitoramento e Denúncias – ECIT José Itamar</h2>
-  <img src="./Sistema Moscas — ECIT (Denúncias + Dashboard + Admin)_files/ff8braS.png" alt="Governo PB">
+  <img src="https://iili.io/ff8braS.png" alt="Governo PB">
 </header>
 
 <div class="container">
@@ -69,17 +75,17 @@
       <div class="card">
         <h3 style="margin:0 0 8px 0">Planta (clique para marcar)</h3>
         <div id="planta-container">
-          <img id="planta" src="./Sistema Moscas — ECIT (Denúncias + Dashboard + Admin)_files/fFpMUVS.png" alt="Planta ECIT">
+          <img id="planta" src="https://iili.io/fFpMUVS.png" alt="Planta ECIT">
           <div id="heatmapLayer" style="position:absolute;inset:0;"></div>
         </div>
 
         <form id="reportForm" style="margin-top:12px">
           <label>Data</label>
-          <input type="date" id="dateField" required="">
+          <input type="date" id="dateField" required>
           <label>Hora</label>
-          <input type="time" id="timeField" required="">
+          <input type="time" id="timeField" required>
           <label>Tipo de local</label>
-          <select id="locationType" required="">
+          <select id="locationType" required>
             <option value="">-- selecionar --</option>
             <option value="sala">Sala de aula</option>
             <option value="quadra">Quadra / pátio</option>
@@ -89,7 +95,7 @@
             <option value="outro">Outro</option>
           </select>
           <label>Coordenadas</label>
-          <input type="text" id="coordsField" readonly="" placeholder="Clique na planta">
+          <input type="text" id="coordsField" readonly placeholder="Clique na planta">
           <label>Descrição (opcional)</label>
           <textarea id="desc" rows="3" placeholder="Observações..."></textarea>
 
@@ -231,10 +237,14 @@ function clearHeatmap(){
 // when clicking on planta
 planta.addEventListener('click', function(e){
   const rect = planta.getBoundingClientRect();
-  const x = (e.clientX - rect.left) / planta.width * 100;
-  const y = (e.clientY - rect.top) / planta.height * 100;
-  const xp = x.toFixed(2), yp = y.toFixed(2);
-  coordsField.value = X: ${xp}%, Y: ${yp}%;
+  // use rect.width / rect.height — planta.width may refer to image intrinsic size
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+coordsField.value = `X: ${x.toFixed(0)}px, Y: ${y.toFixed(0)}px`;
+addHeatPoint(x, y);
+
+ // <-- use template literal (backticks)
   // show a point preview
   addHeatPoint(xp,yp);
 });
@@ -263,6 +273,7 @@ btnSave.addEventListener('click', function(){
   // reset form (keeps date/time current)
   descField.value = '';
   locationType.value = '';
+  coordsField.value = '';
 });
 
 /* limpar formulário */
@@ -280,7 +291,8 @@ function renderTabela(){
   }
   dados.slice().reverse().forEach(r=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = <td>${r.data}</td><td>${r.hora}</td><td>${r.tipo}</td><td>${r.coords}</td>;
+    // use proper escaping via textContent or template literal inside innerHTML
+    tr.innerHTML = `<td>${r.data}</td><td>${r.hora}</td><td>${r.tipo}</td><td>${r.coords}</td>`;
     tabelaDenuncias.appendChild(tr);
   });
 }
@@ -298,7 +310,7 @@ function aggregateData(){
     // type
     byType[r.tipo] = (byType[r.tipo]||0) + 1;
     // hour
-    const h = parseInt(r.hora.split(':')[0],10) || 0;
+    const h = parseInt((r.hora||'00').split(':')[0],10) || 0;
     byHour[h] += 1;
     // day
     byDay[r.data] = (byDay[r.data]||0) + 1;
@@ -348,7 +360,8 @@ function rebuildHeatmapFromData(){
   // for each register, parse coords 'X: xx%, Y: yy%'
   dados.forEach(r=>{
     if(!r.coords) return;
-    const m = r.coords.match(/X:\s*([\d.]+)%.Y:\s([\d.]+)%/);
+    // match "X: 12.34%, Y: 56.78%"
+    const m = r.coords.match(/X:\s*([\d.]+)%,\s*Y:\s*([\d.]+)%/);
     if(m){
       const x = parseFloat(m[1]), y = parseFloat(m[2]);
       addHeatPoint(x,y);
@@ -462,15 +475,10 @@ clearAllBtn.addEventListener('click', function(){
   alert('Registros apagados.');
 });
 
-/* ===================== small helper: change admin creds (optional) ===================== */
-/* You can expose an option in the admin panel to change credentials.
-   For brevity, here we allow changing creds via console:
-   localStorage.setItem('adminCreds', JSON.stringify({user:'novo', pass:'novaSenha'}));
-*/
-
 /* initial charts render */
 renderCharts();
 
 </script>
 
-</body></html>
+</body>
+</html>
